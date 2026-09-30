@@ -34,6 +34,8 @@ jobs:
           ditto /Volumes/Delta/Delta.app "$RUNNER_TEMP/Delta.app"
           hdiutil detach -quiet /Volumes/Delta
           file "$RUNNER_TEMP/Delta.app/Contents/MacOS/Delta"
+          test -s "$RUNNER_TEMP/Delta.app/Contents/Resources/DeltaIcon-1024.png"
+          test -s "$RUNNER_TEMP/Delta.app/Contents/Resources/emoji-catalog.json"
           codesign --verify --deep --strict --verbose=2 "$RUNNER_TEMP/Delta.app"
           mkdir -p "$RUNNER_TEMP/fresh-home"
           set +e
