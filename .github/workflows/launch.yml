@@ -1,0 +1,59 @@
+name: Clean Apple silicon launch
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  launch:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - name: Launch the public DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          sw_vers
+          uname -m
+          curl -fL --retry 3 https://delta-installer-download.sohumarora28.workers.dev/download -o "$RUNNER_TEMP/Delta-1.0.0.dmg"
+          shasum -a 256 "$RUNNER_TEMP/Delta-1.0.0.dmg"
+          hdiutil attach -quiet -nobrowse -readonly "$RUNNER_TEMP/Delta-1.0.0.dmg"
+          ditto /Volumes/Delta/Delta.app "$RUNNER_TEMP/Delta.app"
+          hdiutil detach -quiet /Volumes/Delta
+          file "$RUNNER_TEMP/Delta.app/Contents/MacOS/Delta"
+          codesign --verify --deep --strict --verbose=2 "$RUNNER_TEMP/Delta.app"
+          mkdir -p "$RUNNER_TEMP/fresh-home"
+          set +e
+          CFFIXED_USER_HOME="$RUNNER_TEMP/fresh-home" HOME="$RUNNER_TEMP/fresh-home" "$RUNNER_TEMP/Delta.app/Contents/MacOS/Delta" > "$RUNNER_TEMP/delta.log" 2>&1 &
+          app_pid=$!
+          sleep 20
+          if kill -0 "$app_pid" 2>/dev/null; then
+            echo 'Launch result: process survived 20 seconds'
+            kill "$app_pid"
+            wait "$app_pid"
+            result=0
+          else
+            wait "$app_pid"
+            result=$?
+            echo "Launch result: process exited with $result"
+            log show --last 2m --style compact --predicate 'process == "Delta" OR eventMessage CONTAINS[c] "Delta.app"' > "$RUNNER_TEMP/system.log" 2>&1
+          fi
+          cat "$RUNNER_TEMP/delta.log"
+          exit "$result"
+      - name: Save launch diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/delta.log
+            ${{ runner.temp }}/system.log
+            ~/Library/Logs/DiagnosticReports/Delta*.ips
+            ~/Library/Logs/DiagnosticReports/Delta*.crash
+          if-no-files-found: ignore
