@@ -2,6 +2,11 @@ name: Clean Apple silicon launch
 
 on:
   workflow_dispatch:
+    inputs:
+      download_url:
+        description: DMG URL to verify
+        required: false
+        default: https://delta-installer-download.sohumarora28.workers.dev/download
 
 permissions:
   contents: read
@@ -17,11 +22,13 @@ jobs:
     steps:
       - name: Launch the public DMG
         shell: bash
+        env:
+          DOWNLOAD_URL: ${{ inputs.download_url }}
         run: |
           set -euo pipefail
           sw_vers
           uname -m
-          curl -fL --retry 3 https://delta-installer-download.sohumarora28.workers.dev/download -o "$RUNNER_TEMP/Delta-1.0.0.dmg"
+          curl -fL --retry 3 "$DOWNLOAD_URL" -o "$RUNNER_TEMP/Delta-1.0.0.dmg"
           shasum -a 256 "$RUNNER_TEMP/Delta-1.0.0.dmg"
           hdiutil attach -quiet -nobrowse -readonly "$RUNNER_TEMP/Delta-1.0.0.dmg"
           ditto /Volumes/Delta/Delta.app "$RUNNER_TEMP/Delta.app"
